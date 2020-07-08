@@ -220,21 +220,23 @@ class ClickHouseDialect(default.DefaultDialect):
     def get_columns(self, connection, table_name, schema=None, **kw):
         rows = self._get_table_columns(connection, table_name, schema)
         result = []
+
         for r in rows:
             col_name = r.name
-            col_type = ""
-            if r.type.startswith("AggregateFunction"):
-                # Extract type information from a column
-                # using AggregateFunction
-                # the type from clickhouse will be
-                # AggregateFunction(sum, Int64) for an Int64 type
-                # remove first 24 chars and remove the last one to get Int64
-                col_type = r.type[23:-1]
-            else:
-                # Take out the more detailed type information
-                # e.g. 'map<int,int>' -> 'map'
-                #      'decimal(10,1)' -> decimal
-                col_type = re.search(r'^\w+', r.type).group(0)
+
+            # Extract type information from a column
+            # using AggregateFunction
+            # e.g. AggregateFunction(sum, Int64) -> 'Int64'
+            col_type = re.sub('AggregateFunction\(.*?, *(.*?)\)', '\\1', r.type)
+
+            # Extract type information from a Nullable column
+            # e.g. Nullable(UInt8) -> 'UInt8'
+            col_type = re.sub('Nullable\((.*?)\)', '\\1', col_type)
+
+            # Take out the more detailed type information
+            # e.g. 'map<int,int>' -> 'map'
+            #      'decimal(10,1)' -> decimal
+            col_type = re.search(r'^\w+', col_type).group(0)
             try:
                 coltype = ischema_names[col_type]
             except KeyError:
